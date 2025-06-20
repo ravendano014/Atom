@@ -1,2 +1,1049 @@
-<html>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Atómico 3D con Historia</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: Arial, sans-serif;
+            background: #121212;
+            color: white;
+        }
+        #container { 
+            position: relative; 
+            width: 100vw; 
+            height: 100vh; 
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 300px;
+            z-index: 10;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            z-index: 10;
+        }
+        select, button {
+            padding: 8px;
+            border-radius: 4px;
+            border: none;
+            background: #333;
+            color: white;
+            cursor: pointer;
+        }
+        #element-selector {
+            min-width: 200px;
+        }
+        .metal { color: #ff9d5c; }
+        .no-metal { color: #6bff8e; }
+        .gas-noble { color: #7ab8ff; }
+        .metaloid { color: #d0a8ff; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="info">
+            <h2 id="element-name">Hidrógeno (H)</h2>
+            <p id="element-details">Número atómico: 1 | Masa: 1.008 u</p>
+            <p id="nuclear-composition">Protones: 1 | Neutrones: 0</p>
+            <p id="electron-config">Configuración electrónica: 1s¹</p>
+            <p id="shells-info">Capas de electrones: K=1</p>
+            <p id="classification">Clasificación: <span class="no-metal">No metal</span></p>
+            <p id="discovery">Descubridor: Henry Cavendish (1766)</p>
+            <p id="atomic-fact"></p>
+        </div>
+        <div id="controls">
+            <select id="element-selector">
+                </select>
+            <button id="animate-btn">Animar Electrones</button>
+            <button id="zoom-btn">Zoom al Núcleo</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+    // Datos de 50 elementos (con clasificación, descubridor y año)
+    const elementos = [
+    // Período 1
+    { simbolo: "H", nombre: "Hidrógeno", numeroAtomico: 1, masa: 1.008, electrones: 1, config: "1s¹", clasificacion: "no-metal", descubridor: "Henry Cavendish", año: 1766, fact: "Es el elemento químico más ligero y el más abundante en el universo." },
+    { simbolo: "He", nombre: "Helio", numeroAtomico: 2, masa: 4.0026, electrones: 2, config: "1s²", clasificacion: "gas-noble", descubridor: "Pierre Janssen", año: 1868, fact: "Es el segundo elemento más ligero y es inerte, usado en globos y criogenia." },
+
+    // Período 2
+    { simbolo: "Li", nombre: "Litio", numeroAtomico: 3, masa: 6.94, electrones: 3, config: "[He] 2s¹", clasificacion: "metal", descubridor: "Johan August Arfwedson", año: 1817, fact: "Es el metal más ligero, usado en baterías y medicamentos para trastornos bipolares." },
+    { simbolo: "Be", nombre: "Berilio", numeroAtomico: 4, masa: 9.0122, electrones: 4, config: "[He] 2s²", clasificacion: "metal", descubridor: "Louis-Nicolas Vauquelin", año: 1798, fact: "Es ligero y fuerte, usado en aleaciones y componentes aeroespaciales." },
+    { simbolo: "B", nombre: "Boro", numeroAtomico: 5, masa: 10.81, electrones: 5, config: "[He] 2s² 2p¹", clasificacion: "metaloid", descubridor: "Humphry Davy", año: 1808, fact: "Tiene propiedades intermedias, usado en vidrio de borosilicato y detergentes." },
+    { simbolo: "C", nombre: "Carbono", numeroAtomico: 6, masa: 12.011, electrones: 6, config: "[He] 2s² 2p²", clasificacion: "no-metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Es la base de toda la vida orgánica y existe en formas como diamante y grafito." },
+    { simbolo: "N", nombre: "Nitrógeno", numeroAtomico: 7, masa: 14.007, electrones: 7, config: "[He] 2s² 2p³", clasificacion: "no-metal", descubridor: "Daniel Rutherford", año: 1772, fact: "Constituye el 78% del aire, esencial para proteínas y ácidos nucleicos." },
+    { simbolo: "O", nombre: "Oxígeno", numeroAtomico: 8, masa: 15.999, electrones: 8, config: "[He] 2s² 2p⁴", clasificacion: "no-metal", descubridor: "Carl Wilhelm Scheele", año: 1772, fact: "Es esencial para la respiración y la combustión, el elemento más abundante en la corteza terrestre." },
+    { simbolo: "F", nombre: "Flúor", numeroAtomico: 9, masa: 18.998, electrones: 9, config: "[He] 2s² 2p⁵", clasificacion: "no-metal", descubridor: "Henri Moissan", año: 1886, fact: "Es el elemento más electronegativo, usado en pastas dentales y refrigerantes." },
+    { simbolo: "Ne", nombre: "Neón", numeroAtomico: 10, masa: 20.180, electrones: 10, config: "[He] 2s² 2p⁶", clasificacion: "gas-noble", descubridor: "William Ramsay", año: 1898, fact: "Produce un brillo rojo-anaranjado en letreros luminosos." },
+
+    // Período 3
+    { simbolo: "Na", nombre: "Sodio", numeroAtomico: 11, masa: 22.990, electrones: 11, config: "[Ne] 3s¹", clasificacion: "metal", descubridor: "Humphry Davy", año: 1807, fact: "Es un metal alcalino muy reactivo, esencial para la vida." },
+    { simbolo: "Mg", nombre: "Magnesio", numeroAtomico: 12, masa: 24.305, electrones: 12, config: "[Ne] 3s²", clasificacion: "metal", descubridor: "Joseph Black", año: 1755, fact: "Metal ligero y fuerte, usado en aleaciones y pirotecnia." },
+    { simbolo: "Al", nombre: "Aluminio", numeroAtomico: 13, masa: 26.982, electrones: 13, config: "[Ne] 3s² 3p¹", clasificacion: "metal", descubridor: "Hans Christian Ørsted", año: 1825, fact: "Metal ligero y resistente a la corrosión, muy común en la Tierra." },
+    { simbolo: "Si", nombre: "Silicio", numeroAtomico: 14, masa: 28.085, electrones: 14, config: "[Ne] 3s² 3p²", clasificacion: "metaloid", descubridor: "Jöns Jacob Berzelius", año: 1824, fact: "Es la base de la electrónica moderna (chips de computadora) y del vidrio." },
+    { simbolo: "P", nombre: "Fósforo", numeroAtomico: 15, masa: 30.974, electrones: 15, config: "[Ne] 3s² 3p³", clasificacion: "no-metal", descubridor: "Hennig Brand", año: 1669, fact: "Es esencial para el ADN y los huesos, existe en formas blanca y roja." },
+    { simbolo: "S", nombre: "Azufre", numeroAtomico: 16, masa: 32.06, electrones: 16, config: "[Ne] 3s² 3p⁴", clasificacion: "no-metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Se usa en la fabricación de ácido sulfúrico, fertilizantes y pólvora." },
+    { simbolo: "Cl", nombre: "Cloro", numeroAtomico: 17, masa: 35.45, electrones: 17, config: "[Ne] 3s² 3p⁵", clasificacion: "no-metal", descubridor: "Carl Wilhelm Scheele", año: 1774, fact: "Gas tóxico usado para desinfectar agua y en blanqueadores." },
+    { simbolo: "Ar", nombre: "Argón", numeroAtomico: 18, masa: 39.948, electrones: 18, config: "[Ne] 3s² 3p⁶", clasificacion: "gas-noble", descubridor: "Lord Rayleigh", año: 1894, fact: "Gas inerte usado en bombillas y soldadura." },
+
+    // Período 4 (metales de transición)
+    { simbolo: "K", nombre: "Potasio", numeroAtomico: 19, masa: 39.098, electrones: 19, config: "[Ar] 4s¹", clasificacion: "metal", descubridor: "Humphry Davy", año: 1807, fact: "Metal alcalino muy reactivo, esencial para el funcionamiento celular." },
+    { simbolo: "Ca", nombre: "Calcio", numeroAtomico: 20, masa: 40.078, electrones: 20, config: "[Ar] 4s²", clasificacion: "metal", descubridor: "Humphry Davy", año: 1808, fact: "Esencial para huesos y dientes, también usado en construcción." },
+    { simbolo: "Sc", nombre: "Escandio", numeroAtomico: 21, masa: 44.956, electrones: 21, config: "[Ar] 3d¹ 4s²", clasificacion: "metal", descubridor: "Lars Fredrik Nilson", año: 1879, fact: "Metal ligero usado en aleaciones de alto rendimiento." },
+    { simbolo: "Ti", nombre: "Titanio", numeroAtomico: 22, masa: 47.867, electrones: 22, config: "[Ar] 3d² 4s²", clasificacion: "metal", descubridor: "William Gregor", año: 1791, fact: "Metal fuerte, ligero y resistente a la corrosión, usado en aeronáutica y prótesis." },
+    { simbolo: "V", nombre: "Vanadio", numeroAtomico: 23, masa: 50.942, electrones: 23, config: "[Ar] 3d³ 4s²", clasificacion: "metal", descubridor: "Andrés Manuel del Río", año: 1801, fact: "Usado en aleaciones de acero para aumentar la dureza." },
+    { simbolo: "Cr", nombre: "Cromo", numeroAtomico: 24, masa: 51.996, electrones: 24, config: "[Ar] 3d⁵ 4s¹", clasificacion: "metal", descubridor: "Louis Nicolas Vauquelin", año: 1797, fact: "Usado para dar brillo a los metales (cromado) y en pigmentos." },
+    { simbolo: "Mn", nombre: "Manganeso", numeroAtomico: 25, masa: 54.938, electrones: 25, config: "[Ar] 3d⁵ 4s²", clasificacion: "metal", descubridor: "Johan Gottlieb Gahn", año: 1774, fact: "Importante en la fabricación de acero y en pilas secas." },
+    { simbolo: "Fe", nombre: "Hierro", numeroAtomico: 26, masa: 55.845, electrones: 26, config: "[Ar] 3d⁶ 4s²", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Metal fundamental en la industria y en la hemoglobina de la sangre." },
+    { simbolo: "Co", nombre: "Cobalto", numeroAtomico: 27, masa: 58.933, electrones: 27, config: "[Ar] 3d⁷ 4s²", clasificacion: "metal", descubridor: "Georg Brandt", año: 1735, fact: "Usado en aleaciones magnéticas y en pigmentos azules." },
+    { simbolo: "Ni", nombre: "Níquel", numeroAtomico: 28, masa: 58.693, electrones: 28, config: "[Ar] 3d⁸ 4s²", clasificacion: "metal", descubridor: "Axel Fredrik Cronstedt", año: 1751, fact: "Resistente a la corrosión, usado en monedas y acero inoxidable." },
+    { simbolo: "Cu", nombre: "Cobre", numeroAtomico: 29, masa: 63.546, electrones: 29, config: "[Ar] 3d¹⁰ 4s¹", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Excelente conductor eléctrico y térmico, usado en cables y tuberías." },
+    { simbolo: "Zn", nombre: "Zinc", numeroAtomico: 30, masa: 65.38, electrones: 30, config: "[Ar] 3d¹⁰ 4s²", clasificacion: "metal", descubridor: "Andreas Marggraf", año: 1746, fact: "Usado para galvanizar acero y en baterías." },
+    { simbolo: "Ga", nombre: "Galio", numeroAtomico: 31, masa: 69.723, electrones: 31, config: "[Ar] 3d¹⁰ 4s² 4p¹", clasificacion: "metal", descubridor: "Paul-Émile Lecoq de Boisbaudran", año: 1875, fact: "Metal que se derrite a temperatura corporal, usado en semiconductores." },
+    { simbolo: "Ge", nombre: "Germanio", numeroAtomico: 32, masa: 72.630, electrones: 32, config: "[Ar] 3d¹⁰ 4s² 4p²", clasificacion: "metaloid", descubridor: "Clemens Winkler", año: 1886, fact: "Semiconductor usado en electrónica y fibra óptica." },
+    { simbolo: "As", nombre: "Arsénico", numeroAtomico: 33, masa: 74.922, electrones: 33, config: "[Ar] 3d¹⁰ 4s² 4p³", clasificacion: "metaloid", descubridor: "Albertus Magnus", año: 1250, fact: "Tóxico, pero usado en semiconductores y algunos pesticidas." },
+    { simbolo: "Se", nombre: "Selenio", numeroAtomico: 34, masa: 78.971, electrones: 34, config: "[Ar] 3d¹⁰ 4s² 4p⁴", clasificacion: "no-metal", descubridor: "Jöns Jacob Berzelius", año: 1817, fact: "Conductor de luz, usado en fotocopiadoras y células solares." },
+    { simbolo: "Br", nombre: "Bromo", numeroAtomico: 35, masa: 79.904, electrones: 35, config: "[Ar] 3d¹⁰ 4s² 4p⁵", clasificacion: "no-metal", descubridor: "Antoine Jérôme Balard", año: 1826, fact: "El único no metal líquido a temperatura ambiente, usado en retardantes de llama." },
+    { simbolo: "Kr", nombre: "Kriptón", numeroAtomico: 36, masa: 83.798, electrones: 36, config: "[Ar] 3d¹⁰ 4s² 4p⁶", clasificacion: "gas-noble", descubridor: "William Ramsay", año: 1898, fact: "Gas inerte usado en bombillas fluorescentes y láseres." },
+
+    // Período 5 (metales de transición)
+    { simbolo: "Rb", nombre: "Rubidio", numeroAtomico: 37, masa: 85.468, electrones: 37, config: "[Kr] 5s¹", clasificacion: "metal", descubridor: "Robert Bunsen", año: 1861, fact: "Metal alcalino muy reactivo, usado en células fotoeléctricas." },
+    { simbolo: "Sr", nombre: "Estroncio", numeroAtomico: 38, masa: 87.62, electrones: 38, config: "[Kr] 5s²", clasificacion: "metal", descubridor: "Adair Crawford", año: 1790, fact: "Da color rojo a los fuegos artificiales." },
+    { simbolo: "Y", nombre: "Itrio", numeroAtomico: 39, masa: 88.906, electrones: 39, config: "[Kr] 4d¹ 5s²", clasificacion: "metal", descubridor: "Johan Gadolin", año: 1794, fact: "Usado en pantallas de TV (colores rojos) y láseres." },
+    { simbolo: "Zr", nombre: "Circonio", numeroAtomico: 40, masa: 91.224, electrones: 40, config: "[Kr] 4d² 5s²", clasificacion: "metal", descubridor: "Martin Heinrich Klaproth", año: 1789, fact: "Resistente a la corrosión, usado en reactores nucleares y joyería (circonita)." },
+    { simbolo: "Nb", nombre: "Niobio", numeroAtomico: 41, masa: 92.906, electrones: 41, config: "[Kr] 4d⁴ 5s¹", clasificacion: "metal", descubridor: "Charles Hatchett", año: 1801, fact: "Usado en aleaciones de acero para alta resistencia y superconductores." },
+    { simbolo: "Mo", nombre: "Molibdeno", numeroAtomico: 42, masa: 95.95, electrones: 42, config: "[Kr] 4d⁵ 5s¹", clasificacion: "metal", descubridor: "Carl Wilhelm Scheele", año: 1778, fact: "Importante en aleaciones de acero de alta resistencia y en enzimas biológicas." },
+    { simbolo: "Tc", nombre: "Tecnecio", numeroAtomico: 43, masa: 98, electrones: 43, config: "[Kr] 4d⁵ 5s²", clasificacion: "metal", descubridor: "Emilio Segrè", año: 1937, fact: "El elemento más ligero sin isótopos estables, usado en medicina nuclear." },
+    { simbolo: "Ru", nombre: "Rutenio", numeroAtomico: 44, masa: 101.07, electrones: 44, config: "[Kr] 4d⁷ 5s¹", clasificacion: "metal", descubridor: "Karl Ernst Claus", año: 1844, fact: "Metal noble usado en contactos eléctricos y catalizadores." },
+    { simbolo: "Rh", nombre: "Rodio", numeroAtomico: 45, masa: 102.91, electrones: 45, config: "[Kr] 4d⁸ 5s¹", clasificacion: "metal", descubridor: "William Hyde Wollaston", año: 1803, fact: "Muy valioso, usado en convertidores catalíticos y joyería." },
+    { simbolo: "Pd", nombre: "Paladio", numeroAtomico: 46, masa: 106.42, electrones: 46, config: "[Kr] 4d¹⁰", clasificacion: "metal", descubridor: "William Hyde Wollaston", año: 1803, fact: "Usado en convertidores catalíticos, electrónica y odontología." },
+    { simbolo: "Ag", nombre: "Plata", numeroAtomico: 47, masa: 107.87, electrones: 47, config: "[Kr] 4d¹⁰ 5s¹", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Excelente conductor, usado en joyería, fotografía y electrónica." },
+    { simbolo: "Cd", nombre: "Cadmio", numeroAtomico: 48, masa: 112.41, electrones: 48, config: "[Kr] 4d¹⁰ 5s²", clasificacion: "metal", descubridor: "Friedrich Stromeyer", año: 1817, fact: "Tóxico, usado en baterías recargables y pigmentos." },
+    { simbolo: "In", nombre: "Indio", numeroAtomico: 49, masa: 114.82, electrones: 49, config: "[Kr] 4d¹⁰ 5s² 5p¹", clasificacion: "metal", descubridor: "Ferdinand Reich", año: 1863, fact: "Blando y maleable, usado en pantallas LCD y aleaciones de bajo punto de fusión." },
+    { simbolo: "Sn", nombre: "Estaño", numeroAtomico: 50, masa: 118.71, electrones: 50, config: "[Kr] 4d¹⁰ 5s² 5p²", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Usado en soldaduras y para recubrir latas de alimentos." },
+    { simbolo: "Sb", nombre: "Antimonio", numeroAtomico: 51, masa: 121.76, electrones: 51, config: "[Kr] 4d¹⁰ 5s² 5p³", clasificacion: "metaloid", descubridor: "Conocido desde la antigüedad", año: null, fact: "Usado en aleaciones para endurecer metales y en retardantes de llama." },
+    { simbolo: "Te", nombre: "Telurio", numeroAtomico: 52, masa: 127.60, electrones: 52, config: "[Kr] 4d¹⁰ 5s² 5p⁴", clasificacion: "metaloid", descubridor: "Franz-Joseph Müller von Reichenstein", año: 1782, fact: "Semiconductor, usado en la fabricación de CDs/DVDs regrabables y paneles solares." },
+    { simbolo: "I", nombre: "Yodo", numeroAtomico: 53, masa: 126.90, electrones: 53, config: "[Kr] 4d¹⁰ 5s² 5p⁵", clasificacion: "no-metal", descubridor: "Bernard Courtois", año: 1811, fact: "Esencial para la tiroides, usado como desinfectante y contraste médico." },
+    { simbolo: "Xe", nombre: "Xenón", numeroAtomico: 54, masa: 131.29, electrones: 54, config: "[Kr] 4d¹⁰ 5s² 5p⁶", clasificacion: "gas-noble", descubridor: "William Ramsay", año: 1898, fact: "Gas inerte usado en faros de automóviles de alta intensidad y en anestesia." },
+
+    // Período 6 (lantánidos + metales pesados)
+    { simbolo: "Cs", nombre: "Cesio", numeroAtomico: 55, masa: 132.91, electrones: 55, config: "[Xe] 6s¹", clasificacion: "metal", descubridor: "Robert Bunsen", año: 1860, fact: "El metal más reactivo y con menor punto de fusión, usado en relojes atómicos." },
+    { simbolo: "Ba", nombre: "Bario", numeroAtomico: 56, masa: 137.33, electrones: 56, config: "[Xe] 6s²", clasificacion: "metal", descubridor: "Carl Wilhelm Scheele", año: 1772, fact: "Usado en pirotecnia para dar color verde y en radiografías (contraste)." },
+    { simbolo: "La", nombre: "Lantano", numeroAtomico: 57, masa: 138.91, electrones: 57, config: "[Xe] 5d¹ 6s²", clasificacion: "metal", descubridor: "Carl Gustaf Mosander", año: 1839, fact: "Usado en lentes de cámaras de alta calidad y en aleaciones." },
+    { simbolo: "Ce", nombre: "Cerio", numeroAtomico: 58, masa: 140.12, electrones: 58, config: "[Xe] 4f¹ 5d¹ 6s²", clasificacion: "metal", descubridor: "Jöns Jacob Berzelius", año: 1803, fact: "La tierra rara más abundante, usado en catalizadores y pulido de vidrio." },
+    { simbolo: "Pr", nombre: "Praseodimio", numeroAtomico: 59, masa: 140.91, electrones: 59, config: "[Xe] 4f³ 6s²", clasificacion: "metal", descubridor: "Carl Auer von Welsbach", año: 1885, fact: "Usado para colorear vidrio y en láseres." },
+    { simbolo: "Nd", nombre: "Neodimio", numeroAtomico: 60, masa: 144.24, electrones: 60, config: "[Xe] 4f⁴ 6s²", clasificacion: "metal", descubridor: "Carl Auer von Welsbach", año: 1885, fact: "Usado en imanes permanentes potentes (Neodimio) y en láseres." },
+    { simbolo: "Pm", nombre: "Prometio", numeroAtomico: 61, masa: 145, electrones: 61, config: "[Xe] 4f⁵ 6s²", clasificacion: "metal", descubridor: "Jacob A. Marinsky", año: 1945, fact: "Elemento radiactivo, usado en marcapasos atómicos y señales luminosas." },
+    { simbolo: "Sm", nombre: "Samario", numeroAtomico: 62, masa: 150.36, electrones: 62, config: "[Xe] 4f⁶ 6s²", clasificacion: "metal", descubridor: "Paul-Émile Lecoq de Boisbaudran", año: 1879, fact: "Usado en imanes y en medicina (tratamiento de cáncer)." },
+    { simbolo: "Eu", nombre: "Europio", numeroAtomico: 63, masa: 151.96, electrones: 63, config: "[Xe] 4f⁷ 6s²", clasificacion: "metal", descubridor: "Eugène-Anatole Demarçay", año: 1901, fact: "Usado para producir el color rojo en pantallas de TV a color." },
+    { simbolo: "Gd", nombre: "Gadolinio", numeroAtomico: 64, masa: 157.25, electrones: 64, config: "[Xe] 4f⁷ 5d¹ 6s²", clasificacion: "metal", descubridor: "Jean Charles Galissard de Marignac", año: 1880, fact: "Usado en resonancia magnética (MRI) y en reactores nucleares." },
+    { simbolo: "Tb", nombre: "Terbio", numeroAtomico: 65, masa: 158.93, electrones: 65, config: "[Xe] 4f⁹ 6s²", clasificacion: "metal", descubridor: "Carl Gustaf Mosander", año: 1843, fact: "Da el color verde en pantallas de TV y en láseres." },
+    { simbolo: "Dy", nombre: "Disprosio", numeroAtomico: 66, masa: 162.50, electrones: 66, config: "[Xe] 4f¹⁰ 6s²", clasificacion: "metal", descubridor: "Paul-Émile Lecoq de Boisbaudran", año: 1886, fact: "Usado en láseres y en aleaciones para imanes de alta potencia." },
+    { simbolo: "Ho", nombre: "Holmio", numeroAtomico: 67, masa: 164.93, electrones: 67, config: "[Xe] 4f¹¹ 6s²", clasificacion: "metal", descubridor: "Marc Delafontaine", año: 1878, fact: "Tiene las propiedades magnéticas más altas de cualquier elemento." },
+    { simbolo: "Er", nombre: "Erbio", numeroAtomico: 68, masa: 167.26, electrones: 68, config: "[Xe] 4f¹² 6s²", clasificacion: "metal", descubridor: "Carl Gustaf Mosander", año: 1843, fact: "Usado en fibras ópticas y amplificadores láser." },
+    { simbolo: "Tm", nombre: "Tulio", numeroAtomico: 69, masa: 168.93, electrones: 69, config: "[Xe] 4f¹³ 6s²", clasificacion: "metal", descubridor: "Per Teodor Cleve", año: 1879, fact: "Es el lantánido menos abundante y es usado en láseres médicos." },
+    { simbolo: "Yb", nombre: "Iterbio", numeroAtomico: 70, masa: 173.05, electrones: 70, config: "[Xe] 4f¹⁴ 6s²", clasificacion: "metal", descubridor: "Jean Charles Galissard de Marignac", año: 1878, fact: "Usado en láseres y en relojes atómicos." },
+    { simbolo: "Lu", nombre: "Lutecio", numeroAtomico: 71, masa: 174.97, electrones: 71, config: "[Xe] 4f¹⁴ 5d¹ 6s²", clasificacion: "metal", descubridor: "Georges Urbain", año: 1907, fact: "Usado en detectores de rayos X y en investigación de la física de partículas." },
+    { simbolo: "Hf", nombre: "Hafnio", numeroAtomico: 72, masa: 178.49, electrones: 72, config: "[Xe] 4f¹⁴ 5d² 6s²", clasificacion: "metal", descubridor: "Dirk Coster", año: 1923, fact: "Resistente a la corrosión, usado en barras de control nuclear y superaleaciones." },
+    { simbolo: "Ta", nombre: "Tantalio", numeroAtomico: 73, masa: 180.95, electrones: 73, config: "[Xe] 4f¹⁴ 5d³ 6s²", clasificacion: "metal", descubridor: "Anders Gustaf Ekeberg", año: 1802, fact: "Resistente a la corrosión, usado en condensadores electrónicos y equipos quirúrgicos." },
+    { simbolo: "W", nombre: "Wolframio", numeroAtomico: 74, masa: 183.84, electrones: 74, config: "[Xe] 4f¹⁴ 5d⁴ 6s²", clasificacion: "metal", descubridor: "Juan José Elhuyar", año: 1783, fact: "Tiene el punto de fusión más alto de todos los metales, usado en filamentos de bombillas." },
+    { simbolo: "Re", nombre: "Renio", numeroAtomico: 75, masa: 186.21, electrones: 75, config: "[Xe] 4f¹⁴ 5d⁵ 6s²", clasificacion: "metal", descubridor: "Walter Noddack", año: 1925, fact: "Usado en superaleaciones para motores a reacción." },
+    { simbolo: "Os", nombre: "Osmio", numeroAtomico: 76, masa: 190.23, electrones: 76, config: "[Xe] 4f¹⁴ 5d⁶ 6s²", clasificacion: "metal", descubridor: "Smithson Tennant", año: 1803, fact: "El metal más denso, usado en puntas de bolígrafos y contactos eléctricos." },
+    { simbolo: "Ir", nombre: "Iridio", numeroAtomico: 77, masa: 192.22, electrones: 77, config: "[Xe] 4f¹⁴ 5d⁷ 6s²", clasificacion: "metal", descubridor: "Smithson Tennant", año: 1803, fact: "El metal más resistente a la corrosión, usado en bujías y estándares de peso." },
+    { simbolo: "Pt", nombre: "Platino", numeroAtomico: 78, masa: 195.08, electrones: 78, config: "[Xe] 4f¹⁴ 5d⁹ 6s¹", clasificacion: "metal", descubridor: "Antonio de Ulloa", año: 1735, fact: "Metal precioso, usado en joyería, catalizadores y equipos de laboratorio." },
+    { simbolo: "Au", nombre: "Oro", numeroAtomico: 79, masa: 196.97, electrones: 79, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s¹", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Metal precioso muy maleable y dúctil, excelente conductor." },
+    { simbolo: "Hg", nombre: "Mercurio", numeroAtomico: 80, masa: 200.59, electrones: 80, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s²", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "El único metal líquido a temperatura ambiente, tóxico, usado en termómetros antiguos." },
+    { simbolo: "Tl", nombre: "Talio", numeroAtomico: 81, masa: 204.38, electrones: 81, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p¹", clasificacion: "metal", descubridor: "William Crookes", año: 1861, fact: "Extremadamente tóxico, usado en optoelectrónica y algunas aleaciones." },
+    { simbolo: "Pb", nombre: "Plomo", numeroAtomico: 82, masa: 207.2, electrones: 82, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p²", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Denso y maleable, usado en baterías y protección contra radiaciones." },
+    { simbolo: "Bi", nombre: "Bismuto", numeroAtomico: 83, masa: 208.98, electrones: 83, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p³", clasificacion: "metal", descubridor: "Claude François Geoffroy", año: 1753, fact: "El metal pesado más estable y no tóxico, usado en cosméticos y medicamentos." },
+    { simbolo: "Po", nombre: "Polonio", numeroAtomico: 84, masa: 209, electrones: 84, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁴", clasificacion: "metal", descubridor: "Marie Curie", año: 1898, fact: "Elemento altamente radiactivo, usado como fuente de calor atómica." },
+    { simbolo: "At", nombre: "Astato", numeroAtomico: 85, masa: 210, electrones: 85, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁵", clasificacion: "metaloid", descubridor: "Dale R. Corson", año: 1940, fact: "El elemento más raro de forma natural en la Tierra, altamente radiactivo." },
+    { simbolo: "Rn", nombre: "Radón", numeroAtomico: 86, masa: 222, electrones: 86, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁶", clasificacion: "gas-noble", descubridor: "Friedrich Ernst Dorn", año: 1900, fact: "Gas noble radiactivo, puede ser un riesgo para la salud en interiores." },
+
+    // Período 7 (actínidos + elementos pesados)
+    { simbolo: "Fr", nombre: "Francio", numeroAtomico: 87, masa: 223, electrones: 87, config: "[Rn] 7s¹", clasificacion: "metal", descubridor: "Marguerite Perey", año: 1939, fact: "Es el segundo elemento menos abundante en la Tierra, extremadamente radiactivo." },
+    { simbolo: "Ra", nombre: "Radio", numeroAtomico: 88, masa: 226, electrones: 88, config: "[Rn] 7s²", clasificacion: "metal", descubridor: "Marie Curie", año: 1898, fact: "Radiactivo, usado en tratamientos de cáncer en el pasado." },
+    { simbolo: "Ac", nombre: "Actinio", numeroAtomico: 89, masa: 227, electrones: 89, config: "[Rn] 6d¹ 7s²", clasificacion: "metal", descubridor: "André-Louis Debierne", año: 1899, fact: "Elemento radiactivo, usado como fuente de neutrones." },
+    { simbolo: "Th", nombre: "Torio", numeroAtomico: 90, masa: 232.04, electrones: 90, config: "[Rn] 6d² 7s²", clasificacion: "metal", descubridor: "Jöns Jacob Berzelius", año: 1828, fact: "Combustible nuclear potencial, también usado en lentes de cámaras de alta calidad." },
+    { simbolo: "Pa", nombre: "Protactinio", numeroAtomico: 91, masa: 231.04, electrones: 91, config: "[Rn] 5f² 6d¹ 7s²", clasificacion: "metal", descubridor: "Kasimir Fajans", año: 1913, fact: "Elemento radiactivo raro y tóxico, con poco uso práctico." },
+    { simbolo: "U", nombre: "Uranio", numeroAtomico: 92, masa: 238.03, electrones: 92, config: "[Rn] 5f³ 6d¹ 7s²", clasificacion: "metal", descubridor: "Martin Heinrich Klaproth", año: 1789, fact: "Principal combustible en reactores nucleares y en armas atómicas." },
+    { simbolo: "Np", nombre: "Neptunio", numeroAtomico: 93, masa: 237, electrones: 93, config: "[Rn] 5f⁴ 6d¹ 7s²", clasificacion: "metal", descubridor: "Edwin McMillan", año: 1940, fact: "El primer elemento transuránico, usado en la producción de plutonio." },
+    { simbolo: "Pu", nombre: "Plutonio", numeroAtomico: 94, masa: 244, electrones: 94, config: "[Rn] 5f⁶ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1940, fact: "Fundamental en armas nucleares y reactores nucleares." },
+    { simbolo: "Am", nombre: "Americio", numeroAtomico: 95, masa: 243, electrones: 95, config: "[Rn] 5f⁷ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1944, fact: "Usado en detectores de humo." },
+    { simbolo: "Cm", nombre: "Curio", numeroAtomico: 96, masa: 247, electrones: 96, config: "[Rn] 5f⁷ 6d¹ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1944, fact: "Elemento radiactivo, con aplicaciones en radioisótopos." },
+    { simbolo: "Bk", nombre: "Berkelio", numeroAtomico: 97, masa: 247, electrones: 97, config: "[Rn] 5f⁹ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1949, fact: "Elemento radiactivo sintético, usado principalmente en investigación." },
+    { simbolo: "Cf", nombre: "Californio", numeroAtomico: 98, masa: 251, electrones: 98, config: "[Rn] 5f¹⁰ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1950, fact: "Poderoso emisor de neutrones, usado en detectores de metales y tratamiento del cáncer." },
+    { simbolo: "Es", nombre: "Einstenio", numeroAtomico: 99, masa: 252, electrones: 99, config: "[Rn] 5f¹¹ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1952, fact: "Elemento sintético altamente radiactivo, nombrado en honor a Albert Einstein." },
+    { simbolo: "Fm", nombre: "Fermio", numeroAtomico: 100, masa: 257, electrones: 100, config: "[Rn] 5f¹² 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1952, fact: "Elemento sintético, nombrado en honor a Enrico Fermi." },
+    { simbolo: "Md", nombre: "Mendelevio", numeroAtomico: 101, masa: 258, electrones: 101, config: "[Rn] 5f¹³ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1955, fact: "Elemento sintético, nombrado en honor a Dmitri Mendeléyev." },
+    { simbolo: "No", nombre: "Nobelio", numeroAtomico: 102, masa: 259, electrones: 102, config: "[Rn] 5f¹⁴ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1958, fact: "Elemento sintético, nombrado en honor a Alfred Nobel." },
+    { simbolo: "Lr", nombre: "Lawrencio", numeroAtomico: 103, masa: 262, electrones: 103, config: "[Rn] 5f¹⁴ 6d¹ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1961, fact: "Elemento sintético, nombrado en honor a Ernest O. Lawrence." },
+    { simbolo: "Rf", nombre: "Rutherfordio", numeroAtomico: 104, masa: 267, electrones: 104, config: "[Rn] 5f¹⁴ 6d² 7s²", clasificacion: "metal", descubridor: "Georgy Flerov", año: 1964, fact: "Elemento sintético, nombrado en honor a Ernest Rutherford." },
+    { simbolo: "Db", nombre: "Dubnio", numeroAtomico: 105, masa: 268, electrones: 105, config: "[Rn] 5f¹⁴ 6d³ 7s²", clasificacion: "metal", descubridor: "Georgy Flerov", año: 1967, fact: "Elemento sintético, nombrado en honor a Dubna, Rusia." },
+    { simbolo: "Sg", nombre: "Seaborgio", numeroAtomico: 106, masa: 269, electrones: 106, config: "[Rn] 5f¹⁴ 6d⁴ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1974, fact: "Elemento sintético, nombrado en honor a Glenn T. Seaborg." },
+    { simbolo: "Bh", nombre: "Bohrio", numeroAtomico: 107, masa: 270, electrones: 107, config: "[Rn] 5f¹⁴ 6d⁵ 7s²", clasificacion: "metal", descubridor: "Peter Armbruster", año: 1981, fact: "Elemento sintético, nombrado en honor a Niels Bohr." },
+    { simbolo: "Hs", nombre: "Hassio", numeroAtomico: 108, masa: 269, electrones: 108, config: "[Rn] 5f¹⁴ 6d⁶ 7s²", clasificacion: "metal", descubridor: "Peter Armbruster", año: 1984, fact: "Elemento sintético, nombrado en honor al estado alemán de Hesse." },
+    { simbolo: "Mt", nombre: "Meitnerio", numeroAtomico: 109, masa: 278, electrones: 109, config: "[Rn] 5f¹⁴ 6d⁷ 7s²", clasificacion: "metal", descubridor: "Peter Armbruster", año: 1982, fact: "Elemento sintético, nombrado en honor a Lise Meitner." },
+    { simbolo: "Ds", nombre: "Darmstadtio", numeroAtomico: 110, masa: 281, electrones: 110, config: "[Rn] 5f¹⁴ 6d⁹ 7s¹", clasificacion: "metal", descubridor: "GSI Helmholtz", año: 1994, fact: "Elemento sintético, nombrado en honor a Darmstadt, Alemania." },
+    { simbolo: "Rg", nombre: "Roentgenio", numeroAtomico: 111, masa: 282, electrones: 111, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s¹", clasificacion: "metal", descubridor: "GSI Helmholtz", año: 1994, fact: "Elemento sintético, nombrado en honor a Wilhelm Conrad Röntgen." },
+    { simbolo: "Cn", nombre: "Copernicio", numeroAtomico: 112, masa: 285, electrones: 112, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s²", clasificacion: "metal", descubridor: "GSI Helmholtz", año: 1996, fact: "Elemento sintético, nombrado en honor a Nicolás Copérnico." },
+    { simbolo: "Nh", nombre: "Nihonio", numeroAtomico: 113, masa: 286, electrones: 113, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p¹", clasificacion: "metal", descubridor: "RIKEN", año: 2004, fact: "Elemento sintético, nombrado en honor a Japón (Nihon)." },
+    { simbolo: "Fl", nombre: "Flerovio", numeroAtomico: 114, masa: 289, electrones: 114, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p²", clasificacion: "metal", descubridor: "JINR", año: 1999, fact: "Elemento sintético, nombrado en honor a Georgy Flyorov." },
+    { simbolo: "Mc", nombre: "Moscovio", numeroAtomico: 115, masa: 290, electrones: 115, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p³", clasificacion: "metal", descubridor: "JINR", año: 2003, fact: "Elemento sintético, nombrado en honor a la región de Moscú." },
+    { simbolo: "Lv", nombre: "Livermorio", numeroAtomico: 116, masa: 293, electrones: 116, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁴", clasificacion: "metal", descubridor: "JINR", año: 2000, fact: "Elemento sintético, nombrado en honor al Laboratorio Nacional Lawrence Livermore." },
+    { simbolo: "Ts", nombre: "Teneso", numeroAtomico: 117, masa: 294, electrones: 117, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁵", clasificacion: "metaloid", descubridor: "JINR", año: 2010, fact: "Elemento sintético, nombrado en honor al estado de Tennessee, EE. UU." },
+    { simbolo: "Og", nombre: "Oganesón", numeroAtomico: 118, masa: 294, electrones: 118, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁶", clasificacion: "gas-noble", descubridor: "JINR", año: 2006, fact: "El elemento más pesado sintetizado hasta ahora, nombrado en honor a Yuri Oganessian." }
+];
+
+        // Escena Three.js
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x121212);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.getElementById("container").prepend(renderer.domElement);
+
+        // Controles para rotar y hacer zoom
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Luz direccional
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 5, 5);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040));
+
+        // Variables globales
+        let nucleo, orbitas, electrones = [];
+        let animarElectrones = false;
+        let zoomNucleo = false;
+
+        // Crear núcleo atómico (protones y neutrones estáticos)
+        function crearNucleo(protones, neutrones) {
+            const grupo = new THREE.Group();
+            // Tamaño del núcleo basado en el número total de nucleones para una visualización relativa
+            const radioNucleoBase = 0.8;
+            const radioNucleo = radioNucleoBase * Math.cbrt(protones + neutrones); 
+            
+            // Ajustar el radio de las partículas individuales para que el núcleo no sea demasiado grande
+            const radioParticula = 0.4;
+
+            // Protones (rojos)
+            for (let i = 0; i < protones; i++) {
+                const proton = new THREE.Mesh(
+                    new THREE.SphereGeometry(radioParticula, 32, 32),
+                    new THREE.MeshPhongMaterial({ 
+                        color: 0xff3333, 
+                        shininess: 100 
+                    })
+                );
+                // Posicionar esféricamente dentro del radio del núcleo
+                const phi = Math.acos((2 * i - 1) / protones);
+                const theta = Math.sqrt(protones * Math.PI) * phi;
+                proton.position.set(
+                    radioNucleo * Math.cos(theta) * Math.sin(phi),
+                    radioNucleo * Math.sin(theta) * Math.sin(phi),
+                    radioNucleo * Math.cos(phi)
+                );
+                grupo.add(proton);
+            }
+
+            // Neutrones (azules)
+            for (let i = 0; i < neutrones; i++) {
+                const neutron = new THREE.Mesh(
+                    new THREE.SphereGeometry(radioParticula, 32, 32),
+                    new THREE.MeshPhongMaterial({ 
+                        color: 0x3333ff, 
+                        shininess: 50 
+                    })
+                );
+                // Posicionar esféricamente dentro del radio del núcleo, offset para evitar superposición
+                const phi = Math.acos((2 * i - 1) / neutrones);
+                const theta = Math.sqrt(neutrones * Math.PI) * phi;
+                neutron.position.set(
+                    radioNucleo * Math.cos(theta) * Math.sin(phi) * 0.8, // Ligeramente más cerca del centro
+                    radioNucleo * Math.sin(theta) * Math.sin(phi) * 0.8,
+                    radioNucleo * Math.cos(phi) * 0.8
+                );
+                grupo.add(neutron);
+            }
+
+            // Asegurarse de que el grupo esté centrado
+            grupo.position.set(0, 0, 0);
+
+            return grupo;
+        }
+
+        // Crear órbitas elípticas y electrones (Mejorado para representar capas)
+        function crearOrbitas(numElectrones) {
+            const grupo = new THREE.Group();
+            electrones = [];
+            const capasElectronicas = [
+                { nombre: "K", max: 2, radioBase: 6 },
+                { nombre: "L", max: 8, radioBase: 10 },
+                { nombre: "M", max: 18, radioBase: 14 },
+                { nombre: "N", max: 32, radioBase: 18 },
+                { nombre: "O", max: 32, radioBase: 22 }, // Aumentar radio para capas externas
+                { nombre: "P", max: 18, radioBase: 26 },
+                { nombre: "Q", max: 8, radioBase: 30 }
+            ];
+            let electronesRestantes = numElectrones;
+            let infoCapas = [];
+
+            for (let i = 0; i < capasElectronicas.length; i++) {
+                if (electronesRestantes <= 0) break;
+
+                const capa = capasElectronicas[i];
+                const electronesEnCapa = Math.min(capa.max, electronesRestantes);
+                const radioX = capa.radioBase;          // Semieje mayor (X)
+                const radioZ = capa.radioBase * 0.7;    // Semieje menor (Z, más achatado)
+                
+                infoCapas.push(`${capa.nombre}=${electronesEnCapa}`);
+
+                // Dibujar órbita (línea guía)
+                const puntos = [];
+                for (let theta = 0; theta <= Math.PI * 2; theta += 0.05) {
+                    puntos.push(new THREE.Vector3(
+                        radioX * Math.cos(theta),
+                        0,
+                        radioZ * Math.sin(theta)
+                    ));
+                }
+                const geometriaOrbita = new THREE.BufferGeometry().setFromPoints(puntos);
+                const materialOrbita = new THREE.LineBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.3 });
+                const orbita = new THREE.Line(geometriaOrbita, materialOrbita);
+                orbita.rotation.x = Math.PI / 2; // Alinear en plano XZ (horizontal)
+                
+                // Rotar cada órbita ligeramente diferente para evitar que se superpongan perfectamente
+                orbita.rotation.y = Math.random() * Math.PI; 
+                orbita.rotation.z = Math.random() * Math.PI; 
+
+                grupo.add(orbita);
+
+                // Posicionar electrones en la elipse
+                for (let j = 0; j < electronesEnCapa; j++) {
+                    const angulo = (j / electronesEnCapa) * Math.PI * 2;
+                    const electron = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.3, 16, 16),
+                        new THREE.MeshPhongMaterial({ 
+                            color: 0xffff00, 
+                            emissive: 0xffff00, 
+                            emissiveIntensity: 0.5 
+                        })
+                    );
+                    electron.position.set(
+                        radioX * Math.cos(angulo),
+                        0,
+                        radioZ * Math.sin(angulo)
+                    );
+                    electron.userData = {
+                        angulo: angulo,
+                        radioX: radioX,
+                        radioZ: radioZ,
+                        velocidad: 0.02 + Math.random() * 0.005 // Velocidad ligeramente variada
+                    };
+                    grupo.add(electron);
+                    electrones.push(electron);
+                }
+
+                electronesRestantes -= electronesEnCapa;
+            }
+
+            document.getElementById("shells-info").textContent = `Capas de electrones: ${infoCapas.join(', ')}`;
+            return grupo;
+        }
+
+        // Dibujar átomo completo
+        function dibujarAtomo(elemento) {
+            // Limpiar escena
+            if (nucleo) scene.remove(nucleo);
+            if (orbitas) scene.remove(orbitas);
+
+            // Actualizar información
+            document.getElementById("element-name").textContent = `${elemento.nombre} (${elemento.simbolo})`;
+            document.getElementById("element-details").textContent = 
+                `Número atómico: ${elemento.numeroAtomico} | Masa: ${elemento.masa} u`;
+            
+            // Calcular neutrones (aproximación)
+            let neutrones = Math.round(elemento.masa - elemento.numeroAtomico);
+            // Para el hidrógeno-1 (protio), la masa es ~1, así que 0 neutrones. Otros isótopos tendrían más.
+            // Asegurarse de que no haya neutrones negativos o absurdos
+            neutrones = Math.max(0, neutrones); 
+            // Si es Hidrógeno y la masa es muy cercana a 1, asumir 0 neutrones.
+            if (elemento.simbolo === "H" && Math.abs(elemento.masa - 1.008) < 0.1) {
+                neutrones = 0;
+            }
+
+            document.getElementById("nuclear-composition").textContent = 
+                `Protones: ${elemento.numeroAtomico} | Neutrones: ${neutrones}`;
+
+            document.getElementById("electron-config").textContent = 
+                `Configuración electrónica: ${elemento.config}`;
+            document.getElementById("atomic-fact").textContent = `Dato curioso: ${elemento.fact}`;
+
+            // Clasificación con color
+            let claseColor = "";
+            let textoClasificacion = "";
+            switch (elemento.clasificacion) {
+                case "metal": 
+                    textoClasificacion = "Metal";
+                    claseColor = "metal";
+                    break;
+                case "no-metal": 
+                    textoClasificacion = "No metal";
+                    claseColor = "no-metal";
+                    break;
+                case "gas-noble": 
+                    textoClasificacion = "Gas noble";
+                    claseColor = "gas-noble";
+                    break;
+                case "metaloid": 
+                    textoClasificacion = "Metaloide";
+                    claseColor = "metaloid";
+                    break;
+                default:
+                    textoClasificacion = "Desconocido";
+                    claseColor = "";
+            }
+            document.getElementById("classification").innerHTML = 
+                `Clasificación: <span class="${claseColor}">${textoClasificacion}</span>`;
+
+            // Descubridor y año
+            const añoTexto = elemento.año ? elemento.año : "Antigüedad";
+            document.getElementById("discovery").textContent = 
+                `Descubridor: ${elemento.descubridor} (${añoTexto})`;
+
+            // Crear y añadir núcleo y órbitas
+            nucleo = crearNucleo(elemento.numeroAtomico, neutrones);
+            orbitas = crearOrbitas(elemento.numeroAtomico);
+            scene.add(nucleo);
+            scene.add(orbitas);
+
+            // Ajustar cámara si está en modo zoom
+            if (zoomNucleo) {
+                camera.position.z = 10;
+                controls.target.set(0, 0, 0); // Centrar en el núcleo
+            } else {
+                camera.position.z = 30;
+                controls.target.set(0, 0, 0);
+            }
+            controls.update(); // Actualizar controles después de cambiar la posición de la cámara
+        }
+
+        // Llenar selector de elementos
+        const selector = document.getElementById("element-selector");
+        elementos.forEach(elemento => {
+            const option = document.createElement("option");
+            option.value = elemento.simbolo;
+            option.textContent = `${elemento.simbolo} - ${elemento.nombre}`;
+            selector.appendChild(option);
+        });
+
+        // Evento para cambiar de elemento
+        selector.addEventListener("change", (e) => {
+            const elemento = elementos.find(el => el.simbolo === e.target.value);
+            dibujarAtomo(elemento);
+        });
+
+        // Botón de animación
+        document.getElementById("animate-btn").addEventListener("click", () => {
+            animarElectrones = !animarElectrones;
+            document.getElementById("animate-btn").textContent = 
+                animarElectrones ? "Pausar Electrones" : "Animar Electrones";
+        });
+
+        // Botón de zoom al núcleo
+        document.getElementById("zoom-btn").addEventListener("click", () => {
+            zoomNucleo = !zoomNucleo;
+            document.getElementById("zoom-btn").textContent = 
+                zoomNucleo ? "Alejar Zoom" : "Zoom al Núcleo";
+            dibujarAtomo(elementos.find(el => el.simbolo === selector.value)); // Redibujar para ajustar cámara
+        });
+
+        // Renderizar y animar
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Mover electrones si la animación está activa
+            if (animarElectrones) {
+                electrones.forEach(electron => {
+                    electron.userData.angulo += electron.userData.velocidad;
+                    electron.position.x = electron.userData.radioX * Math.cos(electron.userData.angulo);
+                    electron.position.z = electron.userData.radioZ * Math.sin(electron.userData.angulo);
+                    // Aplicar la rotación de la órbita al electrón individualmente
+                    // Para que los electrones sigan la rotación de su órbita
+                    const parentOrbita = electron.parent; // Asumiendo que el padre es el grupo de la órbita
+                    if (parentOrbita) {
+                        electron.position.applyEuler(parentOrbita.rotation);
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Manejar redimensionamiento
+        window.addEventListener("resize", () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Iniciar con Hidrógeno (el primer elemento en la lista)
+        dibujarAtomo(elementos[0]);
+        animate();
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Atómico 3D con Historia</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: Arial, sans-serif;
+            background: #121212;
+            color: white;
+        }
+        #container { 
+            position: relative; 
+            width: 100vw; 
+            height: 100vh; 
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 300px;
+            z-index: 10;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            z-index: 10;
+        }
+        select, button {
+            padding: 8px;
+            border-radius: 4px;
+            border: none;
+            background: #333;
+            color: white;
+            cursor: pointer;
+        }
+        #element-selector {
+            min-width: 200px;
+        }
+        .metal { color: #ff9d5c; }
+        .no-metal { color: #6bff8e; }
+        .gas-noble { color: #7ab8ff; }
+        .metaloid { color: #d0a8ff; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="info">
+            <h2 id="element-name">Hidrógeno (H)</h2>
+            <p id="element-details">Número atómico: 1 | Masa: 1.008 u</p>
+            <p id="nuclear-composition">Protones: 1 | Neutrones: 0</p>
+            <p id="electron-config">Configuración electrónica: 1s¹</p>
+            <p id="shells-info">Capas de electrones: K=1</p>
+            <p id="classification">Clasificación: <span class="no-metal">No metal</span></p>
+            <p id="discovery">Descubridor: Henry Cavendish (1766)</p>
+            <p id="atomic-fact"></p>
+        </div>
+        <div id="controls">
+            <select id="element-selector">
+                </select>
+            <button id="animate-btn">Animar Electrones</button>
+            <button id="zoom-btn">Zoom al Núcleo</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+    // Datos de 50 elementos (con clasificación, descubridor y año)
+    const elementos = [
+    // Período 1
+    { simbolo: "H", nombre: "Hidrógeno", numeroAtomico: 1, masa: 1.008, electrones: 1, config: "1s¹", clasificacion: "no-metal", descubridor: "Henry Cavendish", año: 1766, fact: "Es el elemento químico más ligero y el más abundante en el universo." },
+    { simbolo: "He", nombre: "Helio", numeroAtomico: 2, masa: 4.0026, electrones: 2, config: "1s²", clasificacion: "gas-noble", descubridor: "Pierre Janssen", año: 1868, fact: "Es el segundo elemento más ligero y es inerte, usado en globos y criogenia." },
+
+    // Período 2
+    { simbolo: "Li", nombre: "Litio", numeroAtomico: 3, masa: 6.94, electrones: 3, config: "[He] 2s¹", clasificacion: "metal", descubridor: "Johan August Arfwedson", año: 1817, fact: "Es el metal más ligero, usado en baterías y medicamentos para trastornos bipolares." },
+    { simbolo: "Be", nombre: "Berilio", numeroAtomico: 4, masa: 9.0122, electrones: 4, config: "[He] 2s²", clasificacion: "metal", descubridor: "Louis-Nicolas Vauquelin", año: 1798, fact: "Es ligero y fuerte, usado en aleaciones y componentes aeroespaciales." },
+    { simbolo: "B", nombre: "Boro", numeroAtomico: 5, masa: 10.81, electrones: 5, config: "[He] 2s² 2p¹", clasificacion: "metaloid", descubridor: "Humphry Davy", año: 1808, fact: "Tiene propiedades intermedias, usado en vidrio de borosilicato y detergentes." },
+    { simbolo: "C", nombre: "Carbono", numeroAtomico: 6, masa: 12.011, electrones: 6, config: "[He] 2s² 2p²", clasificacion: "no-metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Es la base de toda la vida orgánica y existe en formas como diamante y grafito." },
+    { simbolo: "N", nombre: "Nitrógeno", numeroAtomico: 7, masa: 14.007, electrones: 7, config: "[He] 2s² 2p³", clasificacion: "no-metal", descubridor: "Daniel Rutherford", año: 1772, fact: "Constituye el 78% del aire, esencial para proteínas y ácidos nucleicos." },
+    { simbolo: "O", nombre: "Oxígeno", numeroAtomico: 8, masa: 15.999, electrones: 8, config: "[He] 2s² 2p⁴", clasificacion: "no-metal", descubridor: "Carl Wilhelm Scheele", año: 1772, fact: "Es esencial para la respiración y la combustión, el elemento más abundante en la corteza terrestre." },
+    { simbolo: "F", nombre: "Flúor", numeroAtomico: 9, masa: 18.998, electrones: 9, config: "[He] 2s² 2p⁵", clasificacion: "no-metal", descubridor: "Henri Moissan", año: 1886, fact: "Es el elemento más electronegativo, usado en pastas dentales y refrigerantes." },
+    { simbolo: "Ne", nombre: "Neón", numeroAtomico: 10, masa: 20.180, electrones: 10, config: "[He] 2s² 2p⁶", clasificacion: "gas-noble", descubridor: "William Ramsay", año: 1898, fact: "Produce un brillo rojo-anaranjado en letreros luminosos." },
+
+    // Período 3
+    { simbolo: "Na", nombre: "Sodio", numeroAtomico: 11, masa: 22.990, electrones: 11, config: "[Ne] 3s¹", clasificacion: "metal", descubridor: "Humphry Davy", año: 1807, fact: "Es un metal alcalino muy reactivo, esencial para la vida." },
+    { simbolo: "Mg", nombre: "Magnesio", numeroAtomico: 12, masa: 24.305, electrones: 12, config: "[Ne] 3s²", clasificacion: "metal", descubridor: "Joseph Black", año: 1755, fact: "Metal ligero y fuerte, usado en aleaciones y pirotecnia." },
+    { simbolo: "Al", nombre: "Aluminio", numeroAtomico: 13, masa: 26.982, electrones: 13, config: "[Ne] 3s² 3p¹", clasificacion: "metal", descubridor: "Hans Christian Ørsted", año: 1825, fact: "Metal ligero y resistente a la corrosión, muy común en la Tierra." },
+    { simbolo: "Si", nombre: "Silicio", numeroAtomico: 14, masa: 28.085, electrones: 14, config: "[Ne] 3s² 3p²", clasificacion: "metaloid", descubridor: "Jöns Jacob Berzelius", año: 1824, fact: "Es la base de la electrónica moderna (chips de computadora) y del vidrio." },
+    { simbolo: "P", nombre: "Fósforo", numeroAtomico: 15, masa: 30.974, electrones: 15, config: "[Ne] 3s² 3p³", clasificacion: "no-metal", descubridor: "Hennig Brand", año: 1669, fact: "Es esencial para el ADN y los huesos, existe en formas blanca y roja." },
+    { simbolo: "S", nombre: "Azufre", numeroAtomico: 16, masa: 32.06, electrones: 16, config: "[Ne] 3s² 3p⁴", clasificacion: "no-metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Se usa en la fabricación de ácido sulfúrico, fertilizantes y pólvora." },
+    { simbolo: "Cl", nombre: "Cloro", numeroAtomico: 17, masa: 35.45, electrones: 17, config: "[Ne] 3s² 3p⁵", clasificacion: "no-metal", descubridor: "Carl Wilhelm Scheele", año: 1774, fact: "Gas tóxico usado para desinfectar agua y en blanqueadores." },
+    { simbolo: "Ar", nombre: "Argón", numeroAtomico: 18, masa: 39.948, electrones: 18, config: "[Ne] 3s² 3p⁶", clasificacion: "gas-noble", descubridor: "Lord Rayleigh", año: 1894, fact: "Gas inerte usado en bombillas y soldadura." },
+
+    // Período 4 (metales de transición)
+    { simbolo: "K", nombre: "Potasio", numeroAtomico: 19, masa: 39.098, electrones: 19, config: "[Ar] 4s¹", clasificacion: "metal", descubridor: "Humphry Davy", año: 1807, fact: "Metal alcalino muy reactivo, esencial para el funcionamiento celular." },
+    { simbolo: "Ca", nombre: "Calcio", numeroAtomico: 20, masa: 40.078, electrones: 20, config: "[Ar] 4s²", clasificacion: "metal", descubridor: "Humphry Davy", año: 1808, fact: "Esencial para huesos y dientes, también usado en construcción." },
+    { simbolo: "Sc", nombre: "Escandio", numeroAtomico: 21, masa: 44.956, electrones: 21, config: "[Ar] 3d¹ 4s²", clasificacion: "metal", descubridor: "Lars Fredrik Nilson", año: 1879, fact: "Metal ligero usado en aleaciones de alto rendimiento." },
+    { simbolo: "Ti", nombre: "Titanio", numeroAtomico: 22, masa: 47.867, electrones: 22, config: "[Ar] 3d² 4s²", clasificacion: "metal", descubridor: "William Gregor", año: 1791, fact: "Metal fuerte, ligero y resistente a la corrosión, usado en aeronáutica y prótesis." },
+    { simbolo: "V", nombre: "Vanadio", numeroAtomico: 23, masa: 50.942, electrones: 23, config: "[Ar] 3d³ 4s²", clasificacion: "metal", descubridor: "Andrés Manuel del Río", año: 1801, fact: "Usado en aleaciones de acero para aumentar la dureza." },
+    { simbolo: "Cr", nombre: "Cromo", numeroAtomico: 24, masa: 51.996, electrones: 24, config: "[Ar] 3d⁵ 4s¹", clasificacion: "metal", descubridor: "Louis Nicolas Vauquelin", año: 1797, fact: "Usado para dar brillo a los metales (cromado) y en pigmentos." },
+    { simbolo: "Mn", nombre: "Manganeso", numeroAtomico: 25, masa: 54.938, electrones: 25, config: "[Ar] 3d⁵ 4s²", clasificacion: "metal", descubridor: "Johan Gottlieb Gahn", año: 1774, fact: "Importante en la fabricación de acero y en pilas secas." },
+    { simbolo: "Fe", nombre: "Hierro", numeroAtomico: 26, masa: 55.845, electrones: 26, config: "[Ar] 3d⁶ 4s²", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Metal fundamental en la industria y en la hemoglobina de la sangre." },
+    { simbolo: "Co", nombre: "Cobalto", numeroAtomico: 27, masa: 58.933, electrones: 27, config: "[Ar] 3d⁷ 4s²", clasificacion: "metal", descubridor: "Georg Brandt", año: 1735, fact: "Usado en aleaciones magnéticas y en pigmentos azules." },
+    { simbolo: "Ni", nombre: "Níquel", numeroAtomico: 28, masa: 58.693, electrones: 28, config: "[Ar] 3d⁸ 4s²", clasificacion: "metal", descubridor: "Axel Fredrik Cronstedt", año: 1751, fact: "Resistente a la corrosión, usado en monedas y acero inoxidable." },
+    { simbolo: "Cu", nombre: "Cobre", numeroAtomico: 29, masa: 63.546, electrones: 29, config: "[Ar] 3d¹⁰ 4s¹", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Excelente conductor eléctrico y térmico, usado en cables y tuberías." },
+    { simbolo: "Zn", nombre: "Zinc", numeroAtomico: 30, masa: 65.38, electrones: 30, config: "[Ar] 3d¹⁰ 4s²", clasificacion: "metal", descubridor: "Andreas Marggraf", año: 1746, fact: "Usado para galvanizar acero y en baterías." },
+    { simbolo: "Ga", nombre: "Galio", numeroAtomico: 31, masa: 69.723, electrones: 31, config: "[Ar] 3d¹⁰ 4s² 4p¹", clasificacion: "metal", descubridor: "Paul-Émile Lecoq de Boisbaudran", año: 1875, fact: "Metal que se derrite a temperatura corporal, usado en semiconductores." },
+    { simbolo: "Ge", nombre: "Germanio", numeroAtomico: 32, masa: 72.630, electrones: 32, config: "[Ar] 3d¹⁰ 4s² 4p²", clasificacion: "metaloid", descubridor: "Clemens Winkler", año: 1886, fact: "Semiconductor usado en electrónica y fibra óptica." },
+    { simbolo: "As", nombre: "Arsénico", numeroAtomico: 33, masa: 74.922, electrones: 33, config: "[Ar] 3d¹⁰ 4s² 4p³", clasificacion: "metaloid", descubridor: "Albertus Magnus", año: 1250, fact: "Tóxico, pero usado en semiconductores y algunos pesticidas." },
+    { simbolo: "Se", nombre: "Selenio", numeroAtomico: 34, masa: 78.971, electrones: 34, config: "[Ar] 3d¹⁰ 4s² 4p⁴", clasificacion: "no-metal", descubridor: "Jöns Jacob Berzelius", año: 1817, fact: "Conductor de luz, usado en fotocopiadoras y células solares." },
+    { simbolo: "Br", nombre: "Bromo", numeroAtomico: 35, masa: 79.904, electrones: 35, config: "[Ar] 3d¹⁰ 4s² 4p⁵", clasificacion: "no-metal", descubridor: "Antoine Jérôme Balard", año: 1826, fact: "El único no metal líquido a temperatura ambiente, usado en retardantes de llama." },
+    { simbolo: "Kr", nombre: "Kriptón", numeroAtomico: 36, masa: 83.798, electrones: 36, config: "[Ar] 3d¹⁰ 4s² 4p⁶", clasificacion: "gas-noble", descubridor: "William Ramsay", año: 1898, fact: "Gas inerte usado en bombillas fluorescentes y láseres." },
+
+    // Período 5 (metales de transición)
+    { simbolo: "Rb", nombre: "Rubidio", numeroAtomico: 37, masa: 85.468, electrones: 37, config: "[Kr] 5s¹", clasificacion: "metal", descubridor: "Robert Bunsen", año: 1861, fact: "Metal alcalino muy reactivo, usado en células fotoeléctricas." },
+    { simbolo: "Sr", nombre: "Estroncio", numeroAtomico: 38, masa: 87.62, electrones: 38, config: "[Kr] 5s²", clasificacion: "metal", descubridor: "Adair Crawford", año: 1790, fact: "Da color rojo a los fuegos artificiales." },
+    { simbolo: "Y", nombre: "Itrio", numeroAtomico: 39, masa: 88.906, electrones: 39, config: "[Kr] 4d¹ 5s²", clasificacion: "metal", descubridor: "Johan Gadolin", año: 1794, fact: "Usado en pantallas de TV (colores rojos) y láseres." },
+    { simbolo: "Zr", nombre: "Circonio", numeroAtomico: 40, masa: 91.224, electrones: 40, config: "[Kr] 4d² 5s²", clasificacion: "metal", descubridor: "Martin Heinrich Klaproth", año: 1789, fact: "Resistente a la corrosión, usado en reactores nucleares y joyería (circonita)." },
+    { simbolo: "Nb", nombre: "Niobio", numeroAtomico: 41, masa: 92.906, electrones: 41, config: "[Kr] 4d⁴ 5s¹", clasificacion: "metal", descubridor: "Charles Hatchett", año: 1801, fact: "Usado en aleaciones de acero para alta resistencia y superconductores." },
+    { simbolo: "Mo", nombre: "Molibdeno", numeroAtomico: 42, masa: 95.95, electrones: 42, config: "[Kr] 4d⁵ 5s¹", clasificacion: "metal", descubridor: "Carl Wilhelm Scheele", año: 1778, fact: "Importante en aleaciones de acero de alta resistencia y en enzimas biológicas." },
+    { simbolo: "Tc", nombre: "Tecnecio", numeroAtomico: 43, masa: 98, electrones: 43, config: "[Kr] 4d⁵ 5s²", clasificacion: "metal", descubridor: "Emilio Segrè", año: 1937, fact: "El elemento más ligero sin isótopos estables, usado en medicina nuclear." },
+    { simbolo: "Ru", nombre: "Rutenio", numeroAtomico: 44, masa: 101.07, electrones: 44, config: "[Kr] 4d⁷ 5s¹", clasificacion: "metal", descubridor: "Karl Ernst Claus", año: 1844, fact: "Metal noble usado en contactos eléctricos y catalizadores." },
+    { simbolo: "Rh", nombre: "Rodio", numeroAtomico: 45, masa: 102.91, electrones: 45, config: "[Kr] 4d⁸ 5s¹", clasificacion: "metal", descubridor: "William Hyde Wollaston", año: 1803, fact: "Muy valioso, usado en convertidores catalíticos y joyería." },
+    { simbolo: "Pd", nombre: "Paladio", numeroAtomico: 46, masa: 106.42, electrones: 46, config: "[Kr] 4d¹⁰", clasificacion: "metal", descubridor: "William Hyde Wollaston", año: 1803, fact: "Usado en convertidores catalíticos, electrónica y odontología." },
+    { simbolo: "Ag", nombre: "Plata", numeroAtomico: 47, masa: 107.87, electrones: 47, config: "[Kr] 4d¹⁰ 5s¹", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Excelente conductor, usado en joyería, fotografía y electrónica." },
+    { simbolo: "Cd", nombre: "Cadmio", numeroAtomico: 48, masa: 112.41, electrones: 48, config: "[Kr] 4d¹⁰ 5s²", clasificacion: "metal", descubridor: "Friedrich Stromeyer", año: 1817, fact: "Tóxico, usado en baterías recargables y pigmentos." },
+    { simbolo: "In", nombre: "Indio", numeroAtomico: 49, masa: 114.82, electrones: 49, config: "[Kr] 4d¹⁰ 5s² 5p¹", clasificacion: "metal", descubridor: "Ferdinand Reich", año: 1863, fact: "Blando y maleable, usado en pantallas LCD y aleaciones de bajo punto de fusión." },
+    { simbolo: "Sn", nombre: "Estaño", numeroAtomico: 50, masa: 118.71, electrones: 50, config: "[Kr] 4d¹⁰ 5s² 5p²", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Usado en soldaduras y para recubrir latas de alimentos." },
+    { simbolo: "Sb", nombre: "Antimonio", numeroAtomico: 51, masa: 121.76, electrones: 51, config: "[Kr] 4d¹⁰ 5s² 5p³", clasificacion: "metaloid", descubridor: "Conocido desde la antigüedad", año: null, fact: "Usado en aleaciones para endurecer metales y en retardantes de llama." },
+    { simbolo: "Te", nombre: "Telurio", numeroAtomico: 52, masa: 127.60, electrones: 52, config: "[Kr] 4d¹⁰ 5s² 5p⁴", clasificacion: "metaloid", descubridor: "Franz-Joseph Müller von Reichenstein", año: 1782, fact: "Semiconductor, usado en la fabricación de CDs/DVDs regrabables y paneles solares." },
+    { simbolo: "I", nombre: "Yodo", numeroAtomico: 53, masa: 126.90, electrones: 53, config: "[Kr] 4d¹⁰ 5s² 5p⁵", clasificacion: "no-metal", descubridor: "Bernard Courtois", año: 1811, fact: "Esencial para la tiroides, usado como desinfectante y contraste médico." },
+    { simbolo: "Xe", nombre: "Xenón", numeroAtomico: 54, masa: 131.29, electrones: 54, config: "[Kr] 4d¹⁰ 5s² 5p⁶", clasificacion: "gas-noble", descubridor: "William Ramsay", año: 1898, fact: "Gas inerte usado en faros de automóviles de alta intensidad y en anestesia." },
+
+    // Período 6 (lantánidos + metales pesados)
+    { simbolo: "Cs", nombre: "Cesio", numeroAtomico: 55, masa: 132.91, electrones: 55, config: "[Xe] 6s¹", clasificacion: "metal", descubridor: "Robert Bunsen", año: 1860, fact: "El metal más reactivo y con menor punto de fusión, usado en relojes atómicos." },
+    { simbolo: "Ba", nombre: "Bario", numeroAtomico: 56, masa: 137.33, electrones: 56, config: "[Xe] 6s²", clasificacion: "metal", descubridor: "Carl Wilhelm Scheele", año: 1772, fact: "Usado en pirotecnia para dar color verde y en radiografías (contraste)." },
+    { simbolo: "La", nombre: "Lantano", numeroAtomico: 57, masa: 138.91, electrones: 57, config: "[Xe] 5d¹ 6s²", clasificacion: "metal", descubridor: "Carl Gustaf Mosander", año: 1839, fact: "Usado en lentes de cámaras de alta calidad y en aleaciones." },
+    { simbolo: "Ce", nombre: "Cerio", numeroAtomico: 58, masa: 140.12, electrones: 58, config: "[Xe] 4f¹ 5d¹ 6s²", clasificacion: "metal", descubridor: "Jöns Jacob Berzelius", año: 1803, fact: "La tierra rara más abundante, usado en catalizadores y pulido de vidrio." },
+    { simbolo: "Pr", nombre: "Praseodimio", numeroAtomico: 59, masa: 140.91, electrones: 59, config: "[Xe] 4f³ 6s²", clasificacion: "metal", descubridor: "Carl Auer von Welsbach", año: 1885, fact: "Usado para colorear vidrio y en láseres." },
+    { simbolo: "Nd", nombre: "Neodimio", numeroAtomico: 60, masa: 144.24, electrones: 60, config: "[Xe] 4f⁴ 6s²", clasificacion: "metal", descubridor: "Carl Auer von Welsbach", año: 1885, fact: "Usado en imanes permanentes potentes (Neodimio) y en láseres." },
+    { simbolo: "Pm", nombre: "Prometio", numeroAtomico: 61, masa: 145, electrones: 61, config: "[Xe] 4f⁵ 6s²", clasificacion: "metal", descubridor: "Jacob A. Marinsky", año: 1945, fact: "Elemento radiactivo, usado en marcapasos atómicos y señales luminosas." },
+    { simbolo: "Sm", nombre: "Samario", numeroAtomico: 62, masa: 150.36, electrones: 62, config: "[Xe] 4f⁶ 6s²", clasificacion: "metal", descubridor: "Paul-Émile Lecoq de Boisbaudran", año: 1879, fact: "Usado en imanes y en medicina (tratamiento de cáncer)." },
+    { simbolo: "Eu", nombre: "Europio", numeroAtomico: 63, masa: 151.96, electrones: 63, config: "[Xe] 4f⁷ 6s²", clasificacion: "metal", descubridor: "Eugène-Anatole Demarçay", año: 1901, fact: "Usado para producir el color rojo en pantallas de TV a color." },
+    { simbolo: "Gd", nombre: "Gadolinio", numeroAtomico: 64, masa: 157.25, electrones: 64, config: "[Xe] 4f⁷ 5d¹ 6s²", clasificacion: "metal", descubridor: "Jean Charles Galissard de Marignac", año: 1880, fact: "Usado en resonancia magnética (MRI) y en reactores nucleares." },
+    { simbolo: "Tb", nombre: "Terbio", numeroAtomico: 65, masa: 158.93, electrones: 65, config: "[Xe] 4f⁹ 6s²", clasificacion: "metal", descubridor: "Carl Gustaf Mosander", año: 1843, fact: "Da el color verde en pantallas de TV y en láseres." },
+    { simbolo: "Dy", nombre: "Disprosio", numeroAtomico: 66, masa: 162.50, electrones: 66, config: "[Xe] 4f¹⁰ 6s²", clasificacion: "metal", descubridor: "Paul-Émile Lecoq de Boisbaudran", año: 1886, fact: "Usado en láseres y en aleaciones para imanes de alta potencia." },
+    { simbolo: "Ho", nombre: "Holmio", numeroAtomico: 67, masa: 164.93, electrones: 67, config: "[Xe] 4f¹¹ 6s²", clasificacion: "metal", descubridor: "Marc Delafontaine", año: 1878, fact: "Tiene las propiedades magnéticas más altas de cualquier elemento." },
+    { simbolo: "Er", nombre: "Erbio", numeroAtomico: 68, masa: 167.26, electrones: 68, config: "[Xe] 4f¹² 6s²", clasificacion: "metal", descubridor: "Carl Gustaf Mosander", año: 1843, fact: "Usado en fibras ópticas y amplificadores láser." },
+    { simbolo: "Tm", nombre: "Tulio", numeroAtomico: 69, masa: 168.93, electrones: 69, config: "[Xe] 4f¹³ 6s²", clasificacion: "metal", descubridor: "Per Teodor Cleve", año: 1879, fact: "Es el lantánido menos abundante y es usado en láseres médicos." },
+    { simbolo: "Yb", nombre: "Iterbio", numeroAtomico: 70, masa: 173.05, electrones: 70, config: "[Xe] 4f¹⁴ 6s²", clasificacion: "metal", descubridor: "Jean Charles Galissard de Marignac", año: 1878, fact: "Usado en láseres y en relojes atómicos." },
+    { simbolo: "Lu", nombre: "Lutecio", numeroAtomico: 71, masa: 174.97, electrones: 71, config: "[Xe] 4f¹⁴ 5d¹ 6s²", clasificacion: "metal", descubridor: "Georges Urbain", año: 1907, fact: "Usado en detectores de rayos X y en investigación de la física de partículas." },
+    { simbolo: "Hf", nombre: "Hafnio", numeroAtomico: 72, masa: 178.49, electrones: 72, config: "[Xe] 4f¹⁴ 5d² 6s²", clasificacion: "metal", descubridor: "Dirk Coster", año: 1923, fact: "Resistente a la corrosión, usado en barras de control nuclear y superaleaciones." },
+    { simbolo: "Ta", nombre: "Tantalio", numeroAtomico: 73, masa: 180.95, electrones: 73, config: "[Xe] 4f¹⁴ 5d³ 6s²", clasificacion: "metal", descubridor: "Anders Gustaf Ekeberg", año: 1802, fact: "Resistente a la corrosión, usado en condensadores electrónicos y equipos quirúrgicos." },
+    { simbolo: "W", nombre: "Wolframio", numeroAtomico: 74, masa: 183.84, electrones: 74, config: "[Xe] 4f¹⁴ 5d⁴ 6s²", clasificacion: "metal", descubridor: "Juan José Elhuyar", año: 1783, fact: "Tiene el punto de fusión más alto de todos los metales, usado en filamentos de bombillas." },
+    { simbolo: "Re", nombre: "Renio", numeroAtomico: 75, masa: 186.21, electrones: 75, config: "[Xe] 4f¹⁴ 5d⁵ 6s²", clasificacion: "metal", descubridor: "Walter Noddack", año: 1925, fact: "Usado en superaleaciones para motores a reacción." },
+    { simbolo: "Os", nombre: "Osmio", numeroAtomico: 76, masa: 190.23, electrones: 76, config: "[Xe] 4f¹⁴ 5d⁶ 6s²", clasificacion: "metal", descubridor: "Smithson Tennant", año: 1803, fact: "El metal más denso, usado en puntas de bolígrafos y contactos eléctricos." },
+    { simbolo: "Ir", nombre: "Iridio", numeroAtomico: 77, masa: 192.22, electrones: 77, config: "[Xe] 4f¹⁴ 5d⁷ 6s²", clasificacion: "metal", descubridor: "Smithson Tennant", año: 1803, fact: "El metal más resistente a la corrosión, usado en bujías y estándares de peso." },
+    { simbolo: "Pt", nombre: "Platino", numeroAtomico: 78, masa: 195.08, electrones: 78, config: "[Xe] 4f¹⁴ 5d⁹ 6s¹", clasificacion: "metal", descubridor: "Antonio de Ulloa", año: 1735, fact: "Metal precioso, usado en joyería, catalizadores y equipos de laboratorio." },
+    { simbolo: "Au", nombre: "Oro", numeroAtomico: 79, masa: 196.97, electrones: 79, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s¹", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Metal precioso muy maleable y dúctil, excelente conductor." },
+    { simbolo: "Hg", nombre: "Mercurio", numeroAtomico: 80, masa: 200.59, electrones: 80, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s²", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "El único metal líquido a temperatura ambiente, tóxico, usado en termómetros antiguos." },
+    { simbolo: "Tl", nombre: "Talio", numeroAtomico: 81, masa: 204.38, electrones: 81, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p¹", clasificacion: "metal", descubridor: "William Crookes", año: 1861, fact: "Extremadamente tóxico, usado en optoelectrónica y algunas aleaciones." },
+    { simbolo: "Pb", nombre: "Plomo", numeroAtomico: 82, masa: 207.2, electrones: 82, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p²", clasificacion: "metal", descubridor: "Conocido desde la antigüedad", año: null, fact: "Denso y maleable, usado en baterías y protección contra radiaciones." },
+    { simbolo: "Bi", nombre: "Bismuto", numeroAtomico: 83, masa: 208.98, electrones: 83, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p³", clasificacion: "metal", descubridor: "Claude François Geoffroy", año: 1753, fact: "El metal pesado más estable y no tóxico, usado en cosméticos y medicamentos." },
+    { simbolo: "Po", nombre: "Polonio", numeroAtomico: 84, masa: 209, electrones: 84, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁴", clasificacion: "metal", descubridor: "Marie Curie", año: 1898, fact: "Elemento altamente radiactivo, usado como fuente de calor atómica." },
+    { simbolo: "At", nombre: "Astato", numeroAtomico: 85, masa: 210, electrones: 85, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁵", clasificacion: "metaloid", descubridor: "Dale R. Corson", año: 1940, fact: "El elemento más raro de forma natural en la Tierra, altamente radiactivo." },
+    { simbolo: "Rn", nombre: "Radón", numeroAtomico: 86, masa: 222, electrones: 86, config: "[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁶", clasificacion: "gas-noble", descubridor: "Friedrich Ernst Dorn", año: 1900, fact: "Gas noble radiactivo, puede ser un riesgo para la salud en interiores." },
+
+    // Período 7 (actínidos + elementos pesados)
+    { simbolo: "Fr", nombre: "Francio", numeroAtomico: 87, masa: 223, electrones: 87, config: "[Rn] 7s¹", clasificacion: "metal", descubridor: "Marguerite Perey", año: 1939, fact: "Es el segundo elemento menos abundante en la Tierra, extremadamente radiactivo." },
+    { simbolo: "Ra", nombre: "Radio", numeroAtomico: 88, masa: 226, electrones: 88, config: "[Rn] 7s²", clasificacion: "metal", descubridor: "Marie Curie", año: 1898, fact: "Radiactivo, usado en tratamientos de cáncer en el pasado." },
+    { simbolo: "Ac", nombre: "Actinio", numeroAtomico: 89, masa: 227, electrones: 89, config: "[Rn] 6d¹ 7s²", clasificacion: "metal", descubridor: "André-Louis Debierne", año: 1899, fact: "Elemento radiactivo, usado como fuente de neutrones." },
+    { simbolo: "Th", nombre: "Torio", numeroAtomico: 90, masa: 232.04, electrones: 90, config: "[Rn] 6d² 7s²", clasificacion: "metal", descubridor: "Jöns Jacob Berzelius", año: 1828, fact: "Combustible nuclear potencial, también usado en lentes de cámaras de alta calidad." },
+    { simbolo: "Pa", nombre: "Protactinio", numeroAtomico: 91, masa: 231.04, electrones: 91, config: "[Rn] 5f² 6d¹ 7s²", clasificacion: "metal", descubridor: "Kasimir Fajans", año: 1913, fact: "Elemento radiactivo raro y tóxico, con poco uso práctico." },
+    { simbolo: "U", nombre: "Uranio", numeroAtomico: 92, masa: 238.03, electrones: 92, config: "[Rn] 5f³ 6d¹ 7s²", clasificacion: "metal", descubridor: "Martin Heinrich Klaproth", año: 1789, fact: "Principal combustible en reactores nucleares y en armas atómicas." },
+    { simbolo: "Np", nombre: "Neptunio", numeroAtomico: 93, masa: 237, electrones: 93, config: "[Rn] 5f⁴ 6d¹ 7s²", clasificacion: "metal", descubridor: "Edwin McMillan", año: 1940, fact: "El primer elemento transuránico, usado en la producción de plutonio." },
+    { simbolo: "Pu", nombre: "Plutonio", numeroAtomico: 94, masa: 244, electrones: 94, config: "[Rn] 5f⁶ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1940, fact: "Fundamental en armas nucleares y reactores nucleares." },
+    { simbolo: "Am", nombre: "Americio", numeroAtomico: 95, masa: 243, electrones: 95, config: "[Rn] 5f⁷ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1944, fact: "Usado en detectores de humo." },
+    { simbolo: "Cm", nombre: "Curio", numeroAtomico: 96, masa: 247, electrones: 96, config: "[Rn] 5f⁷ 6d¹ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1944, fact: "Elemento radiactivo, con aplicaciones en radioisótopos." },
+    { simbolo: "Bk", nombre: "Berkelio", numeroAtomico: 97, masa: 247, electrones: 97, config: "[Rn] 5f⁹ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1949, fact: "Elemento radiactivo sintético, usado principalmente en investigación." },
+    { simbolo: "Cf", nombre: "Californio", numeroAtomico: 98, masa: 251, electrones: 98, config: "[Rn] 5f¹⁰ 7s²", clasificacion: "metal", descubridor: "Glenn T. Seaborg", año: 1950, fact: "Poderoso emisor de neutrones, usado en detectores de metales y tratamiento del cáncer." },
+    { simbolo: "Es", nombre: "Einstenio", numeroAtomico: 99, masa: 252, electrones: 99, config: "[Rn] 5f¹¹ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1952, fact: "Elemento sintético altamente radiactivo, nombrado en honor a Albert Einstein." },
+    { simbolo: "Fm", nombre: "Fermio", numeroAtomico: 100, masa: 257, electrones: 100, config: "[Rn] 5f¹² 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1952, fact: "Elemento sintético, nombrado en honor a Enrico Fermi." },
+    { simbolo: "Md", nombre: "Mendelevio", numeroAtomico: 101, masa: 258, electrones: 101, config: "[Rn] 5f¹³ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1955, fact: "Elemento sintético, nombrado en honor a Dmitri Mendeléyev." },
+    { simbolo: "No", nombre: "Nobelio", numeroAtomico: 102, masa: 259, electrones: 102, config: "[Rn] 5f¹⁴ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1958, fact: "Elemento sintético, nombrado en honor a Alfred Nobel." },
+    { simbolo: "Lr", nombre: "Lawrencio", numeroAtomico: 103, masa: 262, electrones: 103, config: "[Rn] 5f¹⁴ 6d¹ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1961, fact: "Elemento sintético, nombrado en honor a Ernest O. Lawrence." },
+    { simbolo: "Rf", nombre: "Rutherfordio", numeroAtomico: 104, masa: 267, electrones: 104, config: "[Rn] 5f¹⁴ 6d² 7s²", clasificacion: "metal", descubridor: "Georgy Flerov", año: 1964, fact: "Elemento sintético, nombrado en honor a Ernest Rutherford." },
+    { simbolo: "Db", nombre: "Dubnio", numeroAtomico: 105, masa: 268, electrones: 105, config: "[Rn] 5f¹⁴ 6d³ 7s²", clasificacion: "metal", descubridor: "Georgy Flerov", año: 1967, fact: "Elemento sintético, nombrado en honor a Dubna, Rusia." },
+    { simbolo: "Sg", nombre: "Seaborgio", numeroAtomico: 106, masa: 269, electrones: 106, config: "[Rn] 5f¹⁴ 6d⁴ 7s²", clasificacion: "metal", descubridor: "Albert Ghiorso", año: 1974, fact: "Elemento sintético, nombrado en honor a Glenn T. Seaborg." },
+    { simbolo: "Bh", nombre: "Bohrio", numeroAtomico: 107, masa: 270, electrones: 107, config: "[Rn] 5f¹⁴ 6d⁵ 7s²", clasificacion: "metal", descubridor: "Peter Armbruster", año: 1981, fact: "Elemento sintético, nombrado en honor a Niels Bohr." },
+    { simbolo: "Hs", nombre: "Hassio", numeroAtomico: 108, masa: 269, electrones: 108, config: "[Rn] 5f¹⁴ 6d⁶ 7s²", clasificacion: "metal", descubridor: "Peter Armbruster", año: 1984, fact: "Elemento sintético, nombrado en honor al estado alemán de Hesse." },
+    { simbolo: "Mt", nombre: "Meitnerio", numeroAtomico: 109, masa: 278, electrones: 109, config: "[Rn] 5f¹⁴ 6d⁷ 7s²", clasificacion: "metal", descubridor: "Peter Armbruster", año: 1982, fact: "Elemento sintético, nombrado en honor a Lise Meitner." },
+    { simbolo: "Ds", nombre: "Darmstadtio", numeroAtomico: 110, masa: 281, electrones: 110, config: "[Rn] 5f¹⁴ 6d⁹ 7s¹", clasificacion: "metal", descubridor: "GSI Helmholtz", año: 1994, fact: "Elemento sintético, nombrado en honor a Darmstadt, Alemania." },
+    { simbolo: "Rg", nombre: "Roentgenio", numeroAtomico: 111, masa: 282, electrones: 111, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s¹", clasificacion: "metal", descubridor: "GSI Helmholtz", año: 1994, fact: "Elemento sintético, nombrado en honor a Wilhelm Conrad Röntgen." },
+    { simbolo: "Cn", nombre: "Copernicio", numeroAtomico: 112, masa: 285, electrones: 112, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s²", clasificacion: "metal", descubridor: "GSI Helmholtz", año: 1996, fact: "Elemento sintético, nombrado en honor a Nicolás Copérnico." },
+    { simbolo: "Nh", nombre: "Nihonio", numeroAtomico: 113, masa: 286, electrones: 113, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p¹", clasificacion: "metal", descubridor: "RIKEN", año: 2004, fact: "Elemento sintético, nombrado en honor a Japón (Nihon)." },
+    { simbolo: "Fl", nombre: "Flerovio", numeroAtomico: 114, masa: 289, electrones: 114, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p²", clasificacion: "metal", descubridor: "JINR", año: 1999, fact: "Elemento sintético, nombrado en honor a Georgy Flyorov." },
+    { simbolo: "Mc", nombre: "Moscovio", numeroAtomico: 115, masa: 290, electrones: 115, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p³", clasificacion: "metal", descubridor: "JINR", año: 2003, fact: "Elemento sintético, nombrado en honor a la región de Moscú." },
+    { simbolo: "Lv", nombre: "Livermorio", numeroAtomico: 116, masa: 293, electrones: 116, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁴", clasificacion: "metal", descubridor: "JINR", año: 2000, fact: "Elemento sintético, nombrado en honor al Laboratorio Nacional Lawrence Livermore." },
+    { simbolo: "Ts", nombre: "Teneso", numeroAtomico: 117, masa: 294, electrones: 117, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁵", clasificacion: "metaloid", descubridor: "JINR", año: 2010, fact: "Elemento sintético, nombrado en honor al estado de Tennessee, EE. UU." },
+    { simbolo: "Og", nombre: "Oganesón", numeroAtomico: 118, masa: 294, electrones: 118, config: "[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁶", clasificacion: "gas-noble", descubridor: "JINR", año: 2006, fact: "El elemento más pesado sintetizado hasta ahora, nombrado en honor a Yuri Oganessian." }
+];
+
+        // Escena Three.js
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x121212);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.getElementById("container").prepend(renderer.domElement);
+
+        // Controles para rotar y hacer zoom
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Luz direccional
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 5, 5);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040));
+
+        // Variables globales
+        let nucleo, orbitas, electrones = [];
+        let animarElectrones = false;
+        let zoomNucleo = false;
+
+        // Crear núcleo atómico (protones y neutrones estáticos)
+        function crearNucleo(protones, neutrones) {
+            const grupo = new THREE.Group();
+            // Tamaño del núcleo basado en el número total de nucleones para una visualización relativa
+            const radioNucleoBase = 0.8;
+            const radioNucleo = radioNucleoBase * Math.cbrt(protones + neutrones); 
+            
+            // Ajustar el radio de las partículas individuales para que el núcleo no sea demasiado grande
+            const radioParticula = 0.4;
+
+            // Protones (rojos)
+            for (let i = 0; i < protones; i++) {
+                const proton = new THREE.Mesh(
+                    new THREE.SphereGeometry(radioParticula, 32, 32),
+                    new THREE.MeshPhongMaterial({ 
+                        color: 0xff3333, 
+                        shininess: 100 
+                    })
+                );
+                // Posicionar esféricamente dentro del radio del núcleo
+                const phi = Math.acos((2 * i - 1) / protones);
+                const theta = Math.sqrt(protones * Math.PI) * phi;
+                proton.position.set(
+                    radioNucleo * Math.cos(theta) * Math.sin(phi),
+                    radioNucleo * Math.sin(theta) * Math.sin(phi),
+                    radioNucleo * Math.cos(phi)
+                );
+                grupo.add(proton);
+            }
+
+            // Neutrones (azules)
+            for (let i = 0; i < neutrones; i++) {
+                const neutron = new THREE.Mesh(
+                    new THREE.SphereGeometry(radioParticula, 32, 32),
+                    new THREE.MeshPhongMaterial({ 
+                        color: 0x3333ff, 
+                        shininess: 50 
+                    })
+                );
+                // Posicionar esféricamente dentro del radio del núcleo, offset para evitar superposición
+                const phi = Math.acos((2 * i - 1) / neutrones);
+                const theta = Math.sqrt(neutrones * Math.PI) * phi;
+                neutron.position.set(
+                    radioNucleo * Math.cos(theta) * Math.sin(phi) * 0.8, // Ligeramente más cerca del centro
+                    radioNucleo * Math.sin(theta) * Math.sin(phi) * 0.8,
+                    radioNucleo * Math.cos(phi) * 0.8
+                );
+                grupo.add(neutron);
+            }
+
+            // Asegurarse de que el grupo esté centrado
+            grupo.position.set(0, 0, 0);
+
+            return grupo;
+        }
+
+        // Crear órbitas elípticas y electrones (Mejorado para representar capas)
+        function crearOrbitas(numElectrones) {
+            const grupo = new THREE.Group();
+            electrones = [];
+            const capasElectronicas = [
+                { nombre: "K", max: 2, radioBase: 6 },
+                { nombre: "L", max: 8, radioBase: 10 },
+                { nombre: "M", max: 18, radioBase: 14 },
+                { nombre: "N", max: 32, radioBase: 18 },
+                { nombre: "O", max: 32, radioBase: 22 }, // Aumentar radio para capas externas
+                { nombre: "P", max: 18, radioBase: 26 },
+                { nombre: "Q", max: 8, radioBase: 30 }
+            ];
+            let electronesRestantes = numElectrones;
+            let infoCapas = [];
+
+            for (let i = 0; i < capasElectronicas.length; i++) {
+                if (electronesRestantes <= 0) break;
+
+                const capa = capasElectronicas[i];
+                const electronesEnCapa = Math.min(capa.max, electronesRestantes);
+                const radioX = capa.radioBase;          // Semieje mayor (X)
+                const radioZ = capa.radioBase * 0.7;    // Semieje menor (Z, más achatado)
+                
+                infoCapas.push(`${capa.nombre}=${electronesEnCapa}`);
+
+                // Dibujar órbita (línea guía)
+                const puntos = [];
+                for (let theta = 0; theta <= Math.PI * 2; theta += 0.05) {
+                    puntos.push(new THREE.Vector3(
+                        radioX * Math.cos(theta),
+                        0,
+                        radioZ * Math.sin(theta)
+                    ));
+                }
+                const geometriaOrbita = new THREE.BufferGeometry().setFromPoints(puntos);
+                const materialOrbita = new THREE.LineBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.3 });
+                const orbita = new THREE.Line(geometriaOrbita, materialOrbita);
+                orbita.rotation.x = Math.PI / 2; // Alinear en plano XZ (horizontal)
+                
+                // Rotar cada órbita ligeramente diferente para evitar que se superpongan perfectamente
+                orbita.rotation.y = Math.random() * Math.PI; 
+                orbita.rotation.z = Math.random() * Math.PI; 
+
+                grupo.add(orbita);
+
+                // Posicionar electrones en la elipse
+                for (let j = 0; j < electronesEnCapa; j++) {
+                    const angulo = (j / electronesEnCapa) * Math.PI * 2;
+                    const electron = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.3, 16, 16),
+                        new THREE.MeshPhongMaterial({ 
+                            color: 0xffff00, 
+                            emissive: 0xffff00, 
+                            emissiveIntensity: 0.5 
+                        })
+                    );
+                    electron.position.set(
+                        radioX * Math.cos(angulo),
+                        0,
+                        radioZ * Math.sin(angulo)
+                    );
+                    electron.userData = {
+                        angulo: angulo,
+                        radioX: radioX,
+                        radioZ: radioZ,
+                        velocidad: 0.02 + Math.random() * 0.005 // Velocidad ligeramente variada
+                    };
+                    grupo.add(electron);
+                    electrones.push(electron);
+                }
+
+                electronesRestantes -= electronesEnCapa;
+            }
+
+            document.getElementById("shells-info").textContent = `Capas de electrones: ${infoCapas.join(', ')}`;
+            return grupo;
+        }
+
+        // Dibujar átomo completo
+        function dibujarAtomo(elemento) {
+            // Limpiar escena
+            if (nucleo) scene.remove(nucleo);
+            if (orbitas) scene.remove(orbitas);
+
+            // Actualizar información
+            document.getElementById("element-name").textContent = `${elemento.nombre} (${elemento.simbolo})`;
+            document.getElementById("element-details").textContent = 
+                `Número atómico: ${elemento.numeroAtomico} | Masa: ${elemento.masa} u`;
+            
+            // Calcular neutrones (aproximación)
+            let neutrones = Math.round(elemento.masa - elemento.numeroAtomico);
+            // Para el hidrógeno-1 (protio), la masa es ~1, así que 0 neutrones. Otros isótopos tendrían más.
+            // Asegurarse de que no haya neutrones negativos o absurdos
+            neutrones = Math.max(0, neutrones); 
+            // Si es Hidrógeno y la masa es muy cercana a 1, asumir 0 neutrones.
+            if (elemento.simbolo === "H" && Math.abs(elemento.masa - 1.008) < 0.1) {
+                neutrones = 0;
+            }
+
+            document.getElementById("nuclear-composition").textContent = 
+                `Protones: ${elemento.numeroAtomico} | Neutrones: ${neutrones}`;
+
+            document.getElementById("electron-config").textContent = 
+                `Configuración electrónica: ${elemento.config}`;
+            document.getElementById("atomic-fact").textContent = `Dato curioso: ${elemento.fact}`;
+
+            // Clasificación con color
+            let claseColor = "";
+            let textoClasificacion = "";
+            switch (elemento.clasificacion) {
+                case "metal": 
+                    textoClasificacion = "Metal";
+                    claseColor = "metal";
+                    break;
+                case "no-metal": 
+                    textoClasificacion = "No metal";
+                    claseColor = "no-metal";
+                    break;
+                case "gas-noble": 
+                    textoClasificacion = "Gas noble";
+                    claseColor = "gas-noble";
+                    break;
+                case "metaloid": 
+                    textoClasificacion = "Metaloide";
+                    claseColor = "metaloid";
+                    break;
+                default:
+                    textoClasificacion = "Desconocido";
+                    claseColor = "";
+            }
+            document.getElementById("classification").innerHTML = 
+                `Clasificación: <span class="${claseColor}">${textoClasificacion}</span>`;
+
+            // Descubridor y año
+            const añoTexto = elemento.año ? elemento.año : "Antigüedad";
+            document.getElementById("discovery").textContent = 
+                `Descubridor: ${elemento.descubridor} (${añoTexto})`;
+
+            // Crear y añadir núcleo y órbitas
+            nucleo = crearNucleo(elemento.numeroAtomico, neutrones);
+            orbitas = crearOrbitas(elemento.numeroAtomico);
+            scene.add(nucleo);
+            scene.add(orbitas);
+
+            // Ajustar cámara si está en modo zoom
+            if (zoomNucleo) {
+                camera.position.z = 10;
+                controls.target.set(0, 0, 0); // Centrar en el núcleo
+            } else {
+                camera.position.z = 30;
+                controls.target.set(0, 0, 0);
+            }
+            controls.update(); // Actualizar controles después de cambiar la posición de la cámara
+        }
+
+        // Llenar selector de elementos
+        const selector = document.getElementById("element-selector");
+        elementos.forEach(elemento => {
+            const option = document.createElement("option");
+            option.value = elemento.simbolo;
+            option.textContent = `${elemento.simbolo} - ${elemento.nombre}`;
+            selector.appendChild(option);
+        });
+
+        // Evento para cambiar de elemento
+        selector.addEventListener("change", (e) => {
+            const elemento = elementos.find(el => el.simbolo === e.target.value);
+            dibujarAtomo(elemento);
+        });
+
+        // Botón de animación
+        document.getElementById("animate-btn").addEventListener("click", () => {
+            animarElectrones = !animarElectrones;
+            document.getElementById("animate-btn").textContent = 
+                animarElectrones ? "Pausar Electrones" : "Animar Electrones";
+        });
+
+        // Botón de zoom al núcleo
+        document.getElementById("zoom-btn").addEventListener("click", () => {
+            zoomNucleo = !zoomNucleo;
+            document.getElementById("zoom-btn").textContent = 
+                zoomNucleo ? "Alejar Zoom" : "Zoom al Núcleo";
+            dibujarAtomo(elementos.find(el => el.simbolo === selector.value)); // Redibujar para ajustar cámara
+        });
+
+        // Renderizar y animar
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Mover electrones si la animación está activa
+            if (animarElectrones) {
+                electrones.forEach(electron => {
+                    electron.userData.angulo += electron.userData.velocidad;
+                    electron.position.x = electron.userData.radioX * Math.cos(electron.userData.angulo);
+                    electron.position.z = electron.userData.radioZ * Math.sin(electron.userData.angulo);
+                    // Aplicar la rotación de la órbita al electrón individualmente
+                    // Para que los electrones sigan la rotación de su órbita
+                    const parentOrbita = electron.parent; // Asumiendo que el padre es el grupo de la órbita
+                    if (parentOrbita) {
+                        electron.position.applyEuler(parentOrbita.rotation);
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Manejar redimensionamiento
+        window.addEventListener("resize", () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Iniciar con Hidrógeno (el primer elemento en la lista)
+        dibujarAtomo(elementos[0]);
+        animate();
+    </script>
+</body>
 </html>
